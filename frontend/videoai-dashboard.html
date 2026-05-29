@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VideoAI — Internal Production Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080808;--surface:#0e0e0e;--panel:#141414;--raised:#1a1a1a;
+  --border:#222;--dim:#2a2a2a;--muted:#555;--subtle:#888;
+  --gold:#f5a623;--gold-dim:#7a5010;--gold-bg:#1c1200;
+  --green:#22c55e;--red:#ef4444;--white:#e8e8e8;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:2px}
+
+/* Layout */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:64px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:4px;z-index:10}
+#main{flex:1;display:flex;overflow:hidden}
+
+/* Sidebar */
+.logo{width:32px;height:32px;border-radius:8px;background:var(--gold-bg);border:1px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;margin-bottom:16px;cursor:pointer}
+.logo span{color:var(--gold);font-family:'Syne',sans-serif;font-weight:800;font-size:11px}
+.nav-btn{width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;position:relative}
+.nav-btn:hover{background:var(--raised);color:var(--white)}
+.nav-btn.active{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-dim)}
+.nav-btn .badge{position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--gold);color:#000;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.gpu-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;margin-top:auto;margin-bottom:4px;transition:background .3s}
+.gpu-dot.active{background:var(--gold);animation:pulse 1.5s ease-in-out infinite}
+
+/* Panels */
+.panel{display:none;flex:1;overflow:hidden}
+.panel.active{display:flex}
+
+/* Generate Panel */
+#generate-panel{width:420px;flex-shrink:0;border-right:1px solid var(--border);flex-direction:column;overflow-y:auto}
+.panel-header{padding:20px 24px;border-bottom:1px solid var(--border);background:var(--surface);background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:32px 32px;flex-shrink:0}
+.panel-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
+.panel-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-.02em}
+.panel-body{padding:24px;display:flex;flex-direction:column;gap:20px;flex:1}
+
+/* Form elements */
+.field-label{font-size:12px;font-weight:500;color:var(--subtle);margin-bottom:6px;display:block}
+.field-label span{color:var(--muted);font-weight:400}
+input,textarea,select{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--white);outline:none;transition:border-color .2s,box-shadow .2s}
+input:focus,textarea:focus,select:focus{border-color:rgba(245,166,35,.5);box-shadow:0 0 0 1px rgba(245,166,35,.15)}
+textarea{resize:none;line-height:1.6}
+select{cursor:pointer;appearance:none}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+
+/* Engine cards */
+.engine-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.engine-card{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--panel);cursor:pointer;text-align:left;transition:all .15s}
+.engine-card:hover{background:var(--raised);border-color:var(--dim)}
+.engine-card.active.wan{background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(37,99,235,.04));border-color:rgba(59,130,246,.3);box-shadow:0 0 0 1px rgba(59,130,246,.15)}
+.engine-card.active.cogvideo{background:linear-gradient(135deg,rgba(168,85,247,.12),rgba(109,40,217,.04));border-color:rgba(168,85,247,.3);box-shadow:0 0 0 1px rgba(168,85,247,.15)}
+.engine-card.active.flux{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(5,150,105,.04));border-color:rgba(16,185,129,.3);box-shadow:0 0 0 1px rgba(16,185,129,.15)}
+.engine-name{font-size:11px;font-weight:600;color:var(--white);margin-bottom:2px}
+.engine-meta{display:flex;align-items:center;justify-content:space-between}
+.engine-badge{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)}
+.engine-modes{font-size:9px;color:var(--subtle)}
+
+/* Mode / Domain pills */
+.pill-row{display:flex;gap:8px;flex-wrap:wrap}
+.pill{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);font-size:11px;font-weight:500;color:var(--subtle);cursor:pointer;transition:all .15s}
+.pill:hover{color:var(--white);border-color:var(--dim)}
+.pill.active{background:var(--gold-bg);border-color:var(--gold-dim);color:var(--gold)}
+
+/* Domain cards */
+.domain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.domain-card{padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--panel);cursor:pointer;transition:all .15s}
+.domain-card:hover{background:var(--raised);border-color:var(--dim)}
+.domain-card.active{background:var(--gold-bg);border-color:var(--gold-dim)}
+.domain-card.active .domain-name{color:var(--gold)}
+.domain-name{font-size:11px;font-weight:600;color:var(--white)}
+.domain-desc{font-size:9px;color:var(--muted);margin-top:2px}
+
+/* Toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.toggle-wrap{display:flex;align-items:center;gap:6px;cursor:pointer}
+.toggle-label{font-size:10px;color:var(--muted)}
+.toggle{width:28px;height:16px;border-radius:8px;background:var(--dim);position:relative;transition:background .2s;cursor:pointer;flex-shrink:0}
+.toggle.on{background:var(--gold)}
+.toggle-knob{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .2s}
+.toggle.on .toggle-knob{left:14px}
+
+/* Advanced */
+.advanced-toggle{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);cursor:pointer;background:none;border:none;padding:0;transition:color .15s}
+.advanced-toggle:hover{color:var(--white)}
+.adv-arrow{font-size:8px;transition:transform .2s}
+.adv-arrow.open{transform:rotate(90deg)}
+.adv-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.adv-label{font-size:10px;color:var(--muted);margin-bottom:4px}
+.adv-input{background:var(--dim);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--white);width:100%;outline:none;transition:border-color .2s}
+.adv-input:focus{border-color:rgba(245,166,35,.4)}
+
+/* Submit button */
+.btn-generate{width:100%;padding:14px;border-radius:12px;background:var(--gold);color:#000;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:.02em;border:none;cursor:pointer;transition:all .15s;margin-top:4px}
+.btn-generate:hover{background:#f9bc4a;transform:translateY(-1px);box-shadow:0 4px 20px rgba(245,166,35,.25)}
+.btn-generate:active{transform:scale(.98)}
+.btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* Jobs Panel */
+#jobs-view{flex:1;display:flex;overflow:hidden}
+.jobs-list{width:360px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
+.stat{text-align:center}
+.stat-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;line-height:1}
+.stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.job-list-scroll{flex:1;overflow-y:auto}
+.job-row{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.job-row:hover{background:var(--surface)}
+.job-row.selected{background:var(--raised)}
+.job-row-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+.job-prompt{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.75);line-height:1.5;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.job-meta{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
+.job-progress{margin-top:8px;height:2px;background:var(--dim);border-radius:2px;overflow:hidden}
+.job-progress-fill{height:100%;border-radius:2px;background:var(--gold);transition:width .5s ease}
+
+/* Status badges */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;border:1px solid;font-size:9px;font-family:'JetBrains Mono',monospace;font-weight:500;white-space:nowrap}
+.badge.queued{color:#eab308;background:rgba(234,179,8,.08);border-color:rgba(234,179,8,.2)}
+.badge.running{color:var(--gold);background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.25)}
+.badge.done{color:var(--green);background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.2)}
+.badge.failed{color:var(--red);background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2)}
+.badge.cancelled{color:var(--muted);background:rgba(85,85,85,.1);border-color:var(--border)}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.badge.running .badge-dot{animation:pulse 1.2s ease-in-out infinite}
+
+/* Job preview */
+.job-preview{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.preview-header{padding:16px 24px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.preview-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.preview-prompt{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--subtle);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.preview-meta{display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.preview-body{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:auto;position:relative}
+.preview-empty{text-align:center;color:var(--muted)}
+.preview-empty-icon{font-size:40px;opacity:.15;margin-bottom:12px}
+.preview-media{max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.progress-ring{text-align:center}
+.progress-ring-icon{font-size:36px;color:var(--gold);margin-bottom:16px;animation:spin 2s linear infinite}
+.progress-bar-wrap{width:288px;height:4px;background:var(--dim);border-radius:4px;overflow:hidden;margin:0 auto 12px}
+.progress-bar-fill{height:100%;border-radius:4px;transition:width .5s ease;background:repeating-linear-gradient(60deg,var(--gold),var(--gold) 8px,#c8851a 8px,#c8851a 16px);background-size:40px 100%;animation:stripes .6s linear infinite}
+
+/* Characters Panel */
+#characters-view{flex:1;overflow-y:auto;padding:24px}
+.char-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:16px}
+.char-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;transition:border-color .15s}
+.char-card:hover{border-color:var(--dim)}
+.char-avatar{width:40px;height:40px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:var(--subtle);flex-shrink:0}
+.char-top{display:flex;align-items:flex-start;gap:12px}
+.char-name{font-size:13px;font-weight:600}
+.char-desc{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.char-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.char-tag{font-size:9px;padding:2px 8px;background:var(--raised);border:1px solid var(--border);border-radius:20px;color:var(--muted)}
+.char-lora{font-size:9px;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-top:4px}
+
+/* New character form */
+.create-form{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;display:none}
+.create-form.visible{display:block;animation:slideUp .25s ease forwards}
+.form-actions{display:flex;gap:8px;margin-top:16px}
+.btn-primary{padding:9px 16px;border-radius:10px;background:var(--gold);color:#000;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .15s}
+.btn-primary:hover{background:#f9bc4a}
+.btn-ghost{padding:9px 16px;border-radius:10px;border:1px solid var(--border);color:var(--subtle);font-size:13px;background:none;cursor:pointer;transition:all .15s}
+.btn-ghost:hover{color:var(--white);border-color:var(--dim)}
+
+/* Assets Panel */
+#assets-view{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.assets-header{padding:16px 24px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:16px;flex-shrink:0}
+.filter-row{display:flex;gap:4px;margin-left:auto}
+.filter-btn{padding:6px 12px;border-radius:8px;border:none;background:none;font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .15s;text-transform:capitalize}
+.filter-btn.active{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-dim)}
+.assets-grid{flex:1;overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;align-content:start}
+.asset-card{aspect-ratio:16/9;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:relative;cursor:pointer;transition:border-color .15s}
+.asset-card:hover{border-color:var(--dim)}
+.asset-card img,.asset-card video{width:100%;height:100%;object-fit:cover}
+.asset-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,transparent 50%);opacity:0;transition:opacity .2s}
+.asset-card:hover .asset-overlay{opacity:1}
+.asset-info{position:absolute;bottom:0;left:0;right:0;padding:10px;transform:translateY(4px);transition:transform .2s}
+.asset-card:hover .asset-info{transform:translateY(0)}
+.asset-prompt{font-size:9px;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset-meta-row{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.asset-engine{font-size:9px;color:var(--muted)}
+.asset-dl{font-size:11px;color:var(--gold);text-decoration:none;font-weight:600}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:32px 32px}
+.empty-icon{font-size:36px;opacity:.15;margin-bottom:12px}
+
+/* Section header */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.section-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}
+.section-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* Toaster */
+#toast{position:fixed;bottom:24px;right:24px;z-index:100;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast-msg{background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--white);animation:slideUp .25s ease forwards;pointer-events:all}
+.toast-msg.success{border-color:rgba(34,197,94,.3);color:var(--green)}
+.toast-msg.error{border-color:rgba(239,68,68,.3);color:var(--red)}
+
+/* Utility */
+.divider{height:1px;background:var(--border);margin:0 -24px}
+.grid-bg{background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:32px 32px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes stripes{from{background-position:0 0}to{background-position:40px 0}}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="logo" onclick="showPanel('generate')"><span>AI</span></div>
+    <button class="nav-btn active" id="nav-generate" onclick="showPanel('generate')" title="Generate">⚡</button>
+    <button class="nav-btn" id="nav-jobs" onclick="showPanel('jobs')" title="Jobs">
+      ◎<span class="badge" id="jobs-badge" style="display:none">0</span>
+    </button>
+    <button class="nav-btn" id="nav-characters" onclick="showPanel('characters')" title="Characters">◈</button>
+    <button class="nav-btn" id="nav-assets" onclick="showPanel('assets')" title="Assets">▦</button>
+    <div class="gpu-dot" id="gpu-dot" title="GPU idle"></div>
+  </aside>
+
+  <!-- Main -->
+  <main id="main">
+
+    <!-- ── GENERATE PANEL ── -->
+    <div class="panel active" id="panel-generate" style="flex-direction:row">
+      <div id="generate-panel" style="display:flex">
+        <div class="panel-header grid-bg">
+          <div class="panel-eyebrow">VideoAI</div>
+          <h1 class="panel-title">Generate</h1>
+        </div>
+        <div class="panel-body">
+
+          <!-- Engine -->
+          <div>
+            <label class="field-label">Engine</label>
+            <div class="engine-grid" id="engine-grid">
+              <button class="engine-card active wan" data-engine="wan" onclick="selectEngine(this)">
+                <div class="engine-name">Wan 2.6</div>
+                <div class="engine-meta">
+                  <span class="engine-badge">14B</span>
+                  <span class="engine-modes">t2v · i2v</span>
+                </div>
+              </button>
+              <button class="engine-card cogvideo" data-engine="cogvideo" onclick="selectEngine(this)">
+                <div class="engine-name">CogVideoX</div>
+                <div class="engine-meta">
+                  <span class="engine-badge">5B</span>
+                  <span class="engine-modes">t2v</span>
+                </div>
+              </button>
+              <button class="engine-card flux" data-engine="flux" onclick="selectEngine(this)">
+                <div class="engine-name">FLUX.1</div>
+                <div class="engine-meta">
+                  <span class="engine-badge">Dev</span>
+                  <span class="engine-modes">t2i</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode -->
+          <div>
+            <label class="field-label">Mode</label>
+            <div class="pill-row" id="mode-pills">
+              <button class="pill active" data-mode="t2v" onclick="selectMode(this)">Text → Video</button>
+              <button class="pill" data-mode="i2v" onclick="selectMode(this)">Image → Video</button>
+            </div>
+          </div>
+
+          <!-- Domain -->
+          <div>
+            <label class="field-label">Content Domain</label>
+            <div class="domain-grid">
+              <div class="domain-card" data-domain="general" onclick="selectDomain(this)">
+                <div class="domain-name">General</div>
+                <div class="domain-desc">Versatile generation</div>
+              </div>
+              <div class="domain-card active" data-domain="cinematic" onclick="selectDomain(this)">
+                <div class="domain-name">Cinematic</div>
+                <div class="domain-desc">Film-grade output</div>
+              </div>
+              <div class="domain-card" data-domain="influencer" onclick="selectDomain(this)">
+                <div class="domain-name">Influencer</div>
+                <div class="domain-desc">Social media ready</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Image upload (i2v) -->
+          <div id="img-upload-field" style="display:none">
+            <label class="field-label">Reference Image</label>
+            <label style="display:flex;align-items:center;gap:12px;padding:12px;border:1px dashed var(--border);border-radius:12px;background:var(--panel);cursor:pointer;transition:border-color .2s" onmouseover="this.style.borderColor='rgba(245,166,35,.4)'" onmouseout="this.style.borderColor='var(--border)'">
+              <span id="img-icon" style="font-size:20px">↑</span>
+              <div>
+                <div id="img-label" style="font-size:12px;font-weight:500;color:var(--subtle)">Upload reference image</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px">JPG, PNG, WebP</div>
+              </div>
+              <input type="file" accept="image/*" style="display:none" onchange="handleImgUpload(this)"/>
+            </label>
+          </div>
+
+          <!-- Prompt -->
+          <div>
+            <div class="toggle-row">
+              <label class="field-label" style="margin:0">Prompt</label>
+              <div class="toggle-wrap" onclick="toggleOptimize()">
+                <span class="toggle-label">Auto-optimize</span>
+                <div class="toggle on" id="optimize-toggle"><div class="toggle-knob"></div></div>
+              </div>
+            </div>
+            <textarea id="prompt-input" rows="5" placeholder="A lone astronaut walks across a desolate red planet, cinematic wide shot..." style="margin-top:8px" oninput="checkSubmit()"></textarea>
+          </div>
+
+          <!-- Negative prompt -->
+          <div>
+            <label class="field-label">Negative Prompt</label>
+            <input id="neg-prompt" type="text" placeholder="blurry, low quality, watermark..."/>
+          </div>
+
+          <!-- Style -->
+          <div>
+            <label class="field-label">Style Override <span>(optional)</span></label>
+            <input id="style-prompt" type="text" placeholder="oil painting style, neon noir, hyperrealistic..."/>
+          </div>
+
+          <!-- Advanced -->
+          <div>
+            <button class="advanced-toggle" onclick="toggleAdvanced()">
+              <span class="adv-arrow" id="adv-arrow">▶</span>
+              Advanced Parameters
+            </button>
+            <div id="adv-fields" style="display:none">
+              <div class="adv-grid">
+                <div><div class="adv-label">Steps</div><input class="adv-input" id="adv-steps" placeholder="50"/></div>
+                <div><div class="adv-label">CFG Scale</div><input class="adv-input" id="adv-cfg" placeholder="5.0"/></div>
+                <div><div class="adv-label">Width</div><input class="adv-input" id="adv-width" placeholder="832"/></div>
+                <div><div class="adv-label">Height</div><input class="adv-input" id="adv-height" placeholder="480"/></div>
+                <div><div class="adv-label">Frames</div><input class="adv-input" id="adv-frames" placeholder="81"/></div>
+                <div><div class="adv-label">FPS</div><input class="adv-input" id="adv-fps" placeholder="16"/></div>
+                <div><div class="adv-label">Seed</div><input class="adv-input" id="adv-seed" placeholder="random"/></div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-generate" id="submit-btn" onclick="submitJob()" disabled>Generate ↗</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── JOBS PANEL ── -->
+    <div class="panel" id="panel-jobs">
+      <div id="jobs-view">
+        <div class="jobs-list">
+          <div class="stats-bar" id="stats-bar">
+            <div class="stat"><div class="stat-val" style="color:var(--white)" id="stat-total">0</div><div class="stat-label">Total</div></div>
+            <div class="stat"><div class="stat-val" style="color:var(--green)" id="stat-done">0</div><div class="stat-label">Done</div></div>
+            <div class="stat"><div class="stat-val" style="color:var(--gold)" id="stat-running">0</div><div class="stat-label">Running</div></div>
+            <div class="stat"><div class="stat-val" style="color:var(--red)" id="stat-failed">0</div><div class="stat-label">Failed</div></div>
+          </div>
+          <div class="job-list-scroll" id="job-list"></div>
+        </div>
+        <div class="job-preview" id="job-preview">
+          <div class="preview-body grid-bg">
+            <div class="preview-empty">
+              <div class="preview-empty-icon">◎</div>
+              <p style="font-size:13px">Select a job to preview</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CHARACTERS PANEL ── -->
+    <div class="panel" id="panel-characters">
+      <div id="characters-view">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Characters</h2>
+            <p class="section-sub">Reusable identities with LoRA support</p>
+          </div>
+          <button class="btn-primary" onclick="toggleCreateForm()">+ New Character</button>
+        </div>
+
+        <!-- Create form -->
+        <div class="create-form" id="create-form" style="margin-top:16px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:16px">New Character</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div><label class="field-label">Name</label><input id="char-name" type="text" placeholder="e.g. Sarah Chen" style="margin-top:6px"/></div>
+            <div><label class="field-label">Visual Description</label><textarea id="char-desc" rows="3" placeholder="30-year-old woman, short black hair, sharp features, confident expression..." style="margin-top:6px"></textarea></div>
+            <div><label class="field-label">Style Tags <span>(comma-separated)</span></label><input id="char-tags" type="text" placeholder="cinematic, realistic, professional" style="margin-top:6px"/></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" onclick="createCharacter()">Create Character</button>
+            <button class="btn-ghost" onclick="toggleCreateForm()">Cancel</button>
+          </div>
+        </div>
+
+        <div class="char-grid" id="char-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:48px 0;color:var(--muted);border:1px solid var(--border);border-radius:16px;background:var(--panel)" id="char-empty">
+            <div style="font-size:32px;opacity:.2;margin-bottom:12px">◈</div>
+            <p style="font-size:13px">No characters yet.</p>
+            <p style="font-size:11px;margin-top:4px;opacity:.6">Create one to maintain consistent identities.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ASSETS PANEL ── -->
+    <div class="panel" id="panel-assets">
+      <div id="assets-view">
+        <div class="assets-header">
+          <div>
+            <h2 class="section-title" style="font-size:18px">Asset Library</h2>
+            <p style="font-size:11px;color:var(--muted)" id="assets-count">0 assets</p>
+          </div>
+          <div class="filter-row">
+            <button class="filter-btn active" data-filter="all" onclick="filterAssets(this)">All</button>
+            <button class="filter-btn" data-filter="video" onclick="filterAssets(this)">Video</button>
+            <button class="filter-btn" data-filter="image" onclick="filterAssets(this)">Image</button>
+          </div>
+        </div>
+        <div id="assets-grid" class="assets-grid"></div>
+        <div class="empty-state" id="assets-empty">
+          <div class="empty-icon">▦</div>
+          <p style="font-size:13px">No completed assets yet</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const API = window.VIDEOAI_API || 'http://localhost:8000';
+let state = {
+  engine: 'wan', mode: 't2v', domain: 'cinematic',
+  optimize: true, advanced: false,
+  jobs: [], characters: [],
+  selectedJobId: null,
+  assetFilter: 'all',
+  polling: null,
+};
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'jobs') renderJobs();
+  if (name === 'assets') renderAssets();
+  if (name === 'characters') renderCharacters();
+}
+
+// ── Engine / Mode / Domain ─────────────────────────────────────────────────
+function selectEngine(el) {
+  document.querySelectorAll('.engine-card').forEach(c => {
+    c.classList.remove('active');
+  });
+  el.classList.add('active');
+  state.engine = el.dataset.engine;
+  updateModes();
+}
+
+const ENGINE_MODES = { wan: ['t2v','i2v'], cogvideo: ['t2v'], flux: ['t2i'] };
+const MODE_LABELS  = { t2v: 'Text → Video', i2v: 'Image → Video', t2i: 'Text → Image' };
+
+function updateModes() {
+  const modes = ENGINE_MODES[state.engine];
+  if (!modes.includes(state.mode)) state.mode = modes[0];
+  const container = document.getElementById('mode-pills');
+  container.innerHTML = '';
+  modes.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (m === state.mode ? ' active' : '');
+    btn.textContent = MODE_LABELS[m];
+    btn.dataset.mode = m;
+    btn.onclick = () => selectMode(btn);
+    container.appendChild(btn);
+  });
+  document.getElementById('img-upload-field').style.display = state.mode === 'i2v' ? 'block' : 'none';
+}
+
+function selectMode(el) {
+  document.querySelectorAll('#mode-pills .pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  state.mode = el.dataset.mode;
+  document.getElementById('img-upload-field').style.display = state.mode === 'i2v' ? 'block' : 'none';
+}
+
+function selectDomain(el) {
+  document.querySelectorAll('.domain-card').forEach(d => d.classList.remove('active'));
+  el.classList.add('active');
+  state.domain = el.dataset.domain;
+  const placeholders = {
+    cinematic: 'A lone astronaut walks across a desolate red planet, cinematic wide shot...',
+    influencer: 'A person enjoying a sunny morning at a rooftop café, vibrant lifestyle...',
+    general: 'Describe your scene in detail...',
+  };
+  document.getElementById('prompt-input').placeholder = placeholders[state.domain] || placeholders.general;
+}
+
+function toggleOptimize() {
+  state.optimize = !state.optimize;
+  const t = document.getElementById('optimize-toggle');
+  state.optimize ? t.classList.add('on') : t.classList.remove('on');
+}
+
+function toggleAdvanced() {
+  state.advanced = !state.advanced;
+  document.getElementById('adv-fields').style.display = state.advanced ? 'block' : 'none';
+  document.getElementById('adv-arrow').classList.toggle('open', state.advanced);
+}
+
+function handleImgUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('img-icon').textContent = '✓';
+  document.getElementById('img-label').style.color = '#22c55e';
+  document.getElementById('img-label').textContent = file.name;
+  // In production: upload to API and store URL
+  state.uploadedImageFile = file;
+}
+
+function checkSubmit() {
+  const prompt = document.getElementById('prompt-input').value.trim();
+  document.getElementById('submit-btn').disabled = !prompt;
+}
+
+// ── Submit ─────────────────────────────────────────────────────────────────
+async function submitJob() {
+  const prompt = document.getElementById('prompt-input').value.trim();
+  if (!prompt) return;
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Queuing job...';
+
+  const body = {
+    engine: state.engine,
+    mode: state.mode,
+    content_domain: state.domain,
+    prompt,
+    negative_prompt: document.getElementById('neg-prompt').value || undefined,
+    style_prompt: document.getElementById('style-prompt').value || undefined,
+    optimize_prompt: state.optimize,
+    steps: document.getElementById('adv-steps').value ? +document.getElementById('adv-steps').value : undefined,
+    cfg_scale: document.getElementById('adv-cfg').value ? +document.getElementById('adv-cfg').value : undefined,
+    width: document.getElementById('adv-width').value ? +document.getElementById('adv-width').value : undefined,
+    height: document.getElementById('adv-height').value ? +document.getElementById('adv-height').value : undefined,
+    num_frames: document.getElementById('adv-frames').value ? +document.getElementById('adv-frames').value : undefined,
+    fps: document.getElementById('adv-fps').value ? +document.getElementById('adv-fps').value : undefined,
+    seed: document.getElementById('adv-seed').value ? +document.getElementById('adv-seed').value : undefined,
+  };
+
+  try {
+    const res = await fetch(`${API}/api/v1/generate`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const job = await res.json();
+    state.jobs.unshift(job);
+    state.selectedJobId = job.id;
+    toast('Job queued — ' + job.id.slice(0,8), 'success');
+    showPanel('jobs');
+    renderJobs();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Generate ↗';
+  }
+}
+
+// ── Polling ────────────────────────────────────────────────────────────────
+async function pollJobs() {
+  try {
+    const [jobs, stats] = await Promise.all([
+      fetch(`${API}/api/v1/jobs?limit=60`).then(r => r.json()).catch(() => state.jobs),
+      fetch(`${API}/api/v1/jobs/stats`).then(r => r.json()).catch(() => null),
+    ]);
+    state.jobs = jobs;
+    if (stats) updateStats(stats);
+    const running = jobs.filter(j => j.status === 'running' || j.status === 'queued').length;
+    updateJobsBadge(running);
+    document.getElementById('gpu-dot').className = 'gpu-dot' + (running > 0 ? ' active' : '');
+    const activePanel = document.querySelector('.panel.active');
+    if (activePanel && activePanel.id === 'panel-jobs') renderJobs();
+    if (activePanel && activePanel.id === 'panel-assets') renderAssets();
+  } catch {}
+}
+
+function updateStats(s) {
+  document.getElementById('stat-total').textContent = s.total || 0;
+  document.getElementById('stat-done').textContent = s.done || 0;
+  document.getElementById('stat-running').textContent = s.running || 0;
+  document.getElementById('stat-failed').textContent = s.failed || 0;
+}
+
+function updateJobsBadge(count) {
+  const badge = document.getElementById('jobs-badge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'flex' : 'none';
+}
+
+// ── Jobs render ────────────────────────────────────────────────────────────
+function renderJobs() {
+  const list = document.getElementById('job-list');
+  if (!state.jobs.length) {
+    list.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--muted);font-size:13px">No jobs yet</div>';
+    return;
+  }
+  list.innerHTML = state.jobs.map(job => `
+    <div class="job-row${job.id === state.selectedJobId ? ' selected' : ''}" onclick="selectJob('${job.id}')">
+      <div class="job-row-top">
+        <div class="job-prompt">${esc(job.optimized_prompt || job.prompt)}</div>
+        ${badgeHTML(job.status, job.progress)}
+      </div>
+      <div class="job-meta">
+        <span>${job.engine}</span><span>·</span>
+        <span>${job.mode}</span><span>·</span>
+        <span style="text-transform:capitalize">${job.content_domain}</span>
+        ${job.inference_time_seconds ? `<span>·</span><span>${job.inference_time_seconds}s</span>` : ''}
+      </div>
+      ${job.status === 'running' ? `
+        <div class="job-progress"><div class="job-progress-fill" style="width:${job.progress}%"></div></div>
+      ` : ''}
+    </div>
+  `).join('');
+
+  if (state.selectedJobId) renderPreview(state.jobs.find(j => j.id === state.selectedJobId));
+}
+
+function selectJob(id) {
+  state.selectedJobId = id;
+  renderJobs();
+}
+
+function renderPreview(job) {
+  const preview = document.getElementById('job-preview');
+  if (!job) {
+    preview.innerHTML = '<div class="preview-body grid-bg"><div class="preview-empty"><div class="preview-empty-icon">◎</div><p style="font-size:13px">Select a job to preview</p></div></div>';
+    return;
+  }
+  const url = job.output_url ? (job.output_url.startsWith('http') ? job.output_url : API + job.output_url) : null;
+  const isVideo = url?.endsWith('.mp4');
+
+  preview.innerHTML = `
+    <div class="preview-header">
+      <div class="preview-actions">
+        <div>${badgeHTML(job.status, job.progress)}</div>
+        <div style="display:flex;gap:12px;align-items:center">
+          ${(job.status==='queued'||job.status==='running') ? `<button onclick="cancelJob('${job.id}')" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;transition:color .15s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--muted)'">Cancel</button>` : ''}
+          ${url ? `<a href="${url}" download style="font-size:11px;color:var(--gold);font-weight:600;text-decoration:none">Download ↓</a>` : ''}
+        </div>
+      </div>
+      <div class="preview-prompt">${esc(job.optimized_prompt || job.prompt)}</div>
+      <div class="preview-meta">
+        <span>${job.engine}</span><span>·</span><span>${job.mode}</span>
+        <span>·</span><span style="text-transform:capitalize">${job.content_domain}</span>
+        ${job.inference_time_seconds ? `<span>·</span><span>${job.inference_time_seconds}s inference</span>` : ''}
+      </div>
+    </div>
+    <div class="preview-body" style="background:var(--bg)">
+      ${job.status === 'queued' ? `<div style="text-align:center;color:var(--muted)"><div style="font-size:32px;animation:pulse 1.5s ease-in-out infinite;margin-bottom:12px">◌</div><p style="font-size:13px">Waiting in queue...</p></div>` : ''}
+      ${job.status === 'running' ? `<div class="progress-ring"><div class="progress-ring-icon">◎</div><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${job.progress}%"></div></div><p style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace">${job.progress}% — generating</p></div>` : ''}
+      ${job.status === 'failed' ? `<div style="text-align:center;max-width:400px;padding:24px"><div style="font-size:32px;color:var(--red);margin-bottom:12px">✕</div><p style="font-size:13px;color:var(--red);font-weight:600;margin-bottom:8px">Generation failed</p><p style="font-size:11px;color:var(--muted);font-family:monospace;line-height:1.6">${esc(job.error||'Unknown error')}</p></div>` : ''}
+      ${job.status === 'done' && url && isVideo ? `<video src="${url}" controls autoplay loop muted class="preview-media" style="animation:fadeIn .3s ease forwards"></video>` : ''}
+      ${job.status === 'done' && url && !isVideo ? `<img src="${url}" alt="Generated" class="preview-media" style="animation:fadeIn .3s ease forwards"/>` : ''}
+    </div>
+  `;
+}
+
+async function cancelJob(id) {
+  try {
+    await fetch(`${API}/api/v1/jobs/${id}`, { method: 'DELETE' });
+    toast('Job cancelled', 'success');
+    pollJobs();
+  } catch(e) { toast('Cancel failed', 'error'); }
+}
+
+// ── Characters ─────────────────────────────────────────────────────────────
+async function loadCharacters() {
+  try {
+    state.characters = await fetch(`${API}/api/v1/characters`).then(r => r.json());
+  } catch {}
+}
+
+function renderCharacters() {
+  const grid = document.getElementById('char-grid');
+  const empty = document.getElementById('char-empty');
+  if (!state.characters.length) {
+    empty.style.display = 'block';
+    grid.innerHTML = '';
+    grid.appendChild(empty);
+    return;
+  }
+  empty.style.display = 'none';
+  grid.innerHTML = state.characters.map(c => `
+    <div class="char-card">
+      <div class="char-top">
+        <div class="char-avatar">${c.name[0]}</div>
+        <div style="flex:1;min-width:0">
+          <div class="char-name">${esc(c.name)}</div>
+          <div class="char-desc">${esc(c.description)}</div>
+          ${c.lora_path ? '<div class="char-lora">LoRA attached</div>' : ''}
+        </div>
+      </div>
+      ${c.style_tags?.length ? `<div class="char-tags">${c.style_tags.map(t=>`<span class="char-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function toggleCreateForm() {
+  const form = document.getElementById('create-form');
+  form.classList.toggle('visible');
+  form.style.display = form.classList.contains('visible') ? 'block' : 'none';
+}
+
+async function createCharacter() {
+  const name = document.getElementById('char-name').value.trim();
+  const desc = document.getElementById('char-desc').value.trim();
+  const tags = document.getElementById('char-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  if (!name || !desc) { toast('Name and description required', 'error'); return; }
+  try {
+    const c = await fetch(`${API}/api/v1/characters`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, description: desc, style_tags: tags }),
+    }).then(r => r.json());
+    state.characters.unshift(c);
+    toggleCreateForm();
+    document.getElementById('char-name').value = '';
+    document.getElementById('char-desc').value = '';
+    document.getElementById('char-tags').value = '';
+    renderCharacters();
+    toast('Character created', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ── Assets ─────────────────────────────────────────────────────────────────
+function filterAssets(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.assetFilter = btn.dataset.filter;
+  renderAssets();
+}
+
+function renderAssets() {
+  const doneJobs = state.jobs.filter(j => j.status === 'done' && j.output_url);
+  const filtered = doneJobs.filter(j => {
+    if (state.assetFilter === 'video') return j.output_url?.endsWith('.mp4');
+    if (state.assetFilter === 'image') return !j.output_url?.endsWith('.mp4');
+    return true;
+  });
+
+  const grid = document.getElementById('assets-grid');
+  const empty = document.getElementById('assets-empty');
+
+  document.getElementById('assets-count').textContent = filtered.length + ' asset' + (filtered.length !== 1 ? 's' : '');
+
+  if (!filtered.length) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+  grid.style.display = 'grid';
+  empty.style.display = 'none';
+
+  grid.innerHTML = filtered.map(j => {
+    const url = j.output_url.startsWith('http') ? j.output_url : API + j.output_url;
+    const isVideo = url.endsWith('.mp4');
+    return `
+      <div class="asset-card">
+        ${isVideo ? `<video src="${url}" muted></video>` : `<img src="${url}" alt="${esc(j.prompt)}" loading="lazy"/>`}
+        <div class="asset-overlay"></div>
+        <div class="asset-info">
+          <div class="asset-prompt">${esc(j.prompt)}</div>
+          <div class="asset-meta-row">
+            <span class="asset-engine">${j.engine} · ${j.content_domain}</span>
+            <a href="${url}" download class="asset-dl">↓</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function badgeHTML(status, progress) {
+  const dot = status === 'running' ? '<span class="badge-dot"></span>' : '';
+  const label = status === 'running' ? progress + '%' : status;
+  return `<span class="badge ${status}">${dot}${label}</span>`;
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, type='') {
+  const wrap = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast-msg ' + type;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async function init() {
+  // Immediate load
+  await Promise.all([pollJobs(), loadCharacters()]);
+  // Start poll loop
+  state.polling = setInterval(pollJobs, 2500);
+})();
+</script>
+</body>
+</html>
