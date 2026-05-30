@@ -39,6 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
 app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs")
 
 
