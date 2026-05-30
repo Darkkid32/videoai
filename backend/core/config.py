@@ -45,12 +45,12 @@ class Settings(BaseSettings):
     WAN_MODEL_ID: str = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
     WAN_I2V_MODEL_ID: str = "Wan-AI/Wan2.1-I2V-14B-480P-Diffusers"
     COGVIDEO_MODEL_ID: str = "THUDM/CogVideoX-5b"
-    FLUX_MODEL_ID: str = "black-forest-labs/FLUX.1-dev"
+    FLUX_MODEL_ID: str = "black-forest-labs/FLUX.1-schnell"
 
     # Default generation params
     WAN_DEFAULT_STEPS: int = 50
     COGVIDEO_DEFAULT_STEPS: int = 50
-    FLUX_DEFAULT_STEPS: int = 28
+    FLUX_DEFAULT_STEPS: int = 4
 
     # Content domains enabled
     ENABLE_GENERAL: bool = True

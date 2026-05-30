@@ -7,7 +7,7 @@ import clsx from "clsx";
 const ENGINES = [
   { id: "wan"      as Engine, label: "Wan 2.6",   badge: "14B", modes: ["t2v","i2v"] as Mode[], color: "from-blue-500/20 to-blue-900/10 border-blue-500/30" },
   { id: "cogvideo" as Engine, label: "CogVideoX", badge: "5B",  modes: ["t2v"]        as Mode[], color: "from-purple-500/20 to-purple-900/10 border-purple-500/30" },
-  { id: "flux"     as Engine, label: "FLUX.1",    badge: "Dev", modes: ["t2i"]        as Mode[], color: "from-emerald-500/20 to-emerald-900/10 border-emerald-500/30" },
+  { id: "flux"     as Engine, label: "FLUX.1",    badge: "Schnell", modes: ["t2i"]        as Mode[], color: "from-emerald-500/20 to-emerald-900/10 border-emerald-500/30" },
 ];
 
 const DOMAINS: { id: Domain; label: string; desc: string }[] = [
