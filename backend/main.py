@@ -45,3 +45,8 @@ app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs"
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "1.0.0", "gpu": settings.GPU_DEVICE}
+
+from fastapi.responses import RedirectResponse
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/docs")
