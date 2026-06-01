@@ -40,19 +40,22 @@ class WanPipeline:
         pipe.enable_model_cpu_offload()
 
         pipe_i2v = None
-        try:
-            logger.info("[Wan] Loading I2V...")
-            pipe_i2v = WanImageToVideoPipeline.from_pretrained(
-                settings.WAN_I2V_MODEL_ID,
-                **kwargs
-            )
-            if hasattr(pipe_i2v, "safety_checker"):
-                pipe_i2v.safety_checker = None
-            if hasattr(pipe_i2v, "requires_safety_checker"):
-                pipe_i2v.requires_safety_checker = False
-            pipe_i2v.enable_model_cpu_offload()
-        except Exception as e:
-            logger.warning(f"[Wan] I2V not loaded: {e}")
+        if not settings.COLAB_T4_MODE and settings.WAN_I2V_MODEL_ID:
+            try:
+                logger.info(f"[Wan] Loading I2V: {settings.WAN_I2V_MODEL_ID}")
+                pipe_i2v = WanImageToVideoPipeline.from_pretrained(
+                    settings.WAN_I2V_MODEL_ID,
+                    **kwargs
+                )
+                if hasattr(pipe_i2v, "safety_checker"):
+                    pipe_i2v.safety_checker = None
+                if hasattr(pipe_i2v, "requires_safety_checker"):
+                    pipe_i2v.requires_safety_checker = False
+                pipe_i2v.enable_model_cpu_offload()
+            except Exception as e:
+                logger.warning(f"[Wan] I2V not loaded: {e}")
+        else:
+            logger.info("[Wan] I2V loading skipped (T4 mode or no model ID)")
 
         _instance = cls(pipe, pipe_i2v)
         logger.info("[Wan] Ready.")

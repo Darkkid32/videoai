@@ -69,8 +69,11 @@ async def generate(req: GenerateRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(400, "CogVideoX engine disabled for this profile.")
     if req.engine == "flux" and not settings.ENABLE_FLUX:
         raise HTTPException(400, "FLUX engine disabled.")
-    if req.mode == "i2v" and not req.input_image_url:
-        raise HTTPException(400, "input_image_url required for i2v mode.")
+    if req.mode == "i2v":
+        if not req.input_image_url:
+            raise HTTPException(400, "input_image_url required for i2v mode.")
+        if req.engine == "wan" and settings.COLAB_T4_MODE:
+            raise HTTPException(400, "Image-to-video is not available in T4/Colab mode.")
 
     # Validate content domain
     domain_map = {
