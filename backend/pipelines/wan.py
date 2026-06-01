@@ -37,7 +37,11 @@ class WanPipeline:
             pipe.safety_checker = None
         if hasattr(pipe, "requires_safety_checker"):
             pipe.requires_safety_checker = False
-        pipe.enable_model_cpu_offload()
+        if settings.COLAB_T4_MODE:
+            pipe.to("cuda", dtype)
+            logger.info("[Wan] Loaded entirely to GPU (T4 mode)")
+        else:
+            pipe.enable_model_cpu_offload()
 
         pipe_i2v = None
         if not settings.COLAB_T4_MODE and settings.WAN_I2V_MODEL_ID:
