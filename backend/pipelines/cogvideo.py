@@ -19,13 +19,21 @@ class CogVideoPipeline:
 
         from diffusers import CogVideoXPipeline
         logger.info(f"[CogVideo] Loading: {settings.COGVIDEO_MODEL_ID}")
+        kwargs = {
+            "torch_dtype": torch.bfloat16,
+            "cache_dir": settings.MODEL_CACHE_DIR,
+        }
+        if settings.HF_TOKEN:
+            kwargs["token"] = settings.HF_TOKEN
+
         pipe = CogVideoXPipeline.from_pretrained(
             settings.COGVIDEO_MODEL_ID,
-            torch_dtype=torch.bfloat16,
-            cache_dir=settings.MODEL_CACHE_DIR,
+            **kwargs
         )
         if hasattr(pipe, "safety_checker"):
             pipe.safety_checker = None
+        if hasattr(pipe, "requires_safety_checker"):
+            pipe.requires_safety_checker = False
         pipe.enable_model_cpu_offload()
         pipe.vae.enable_slicing()
         pipe.vae.enable_tiling()

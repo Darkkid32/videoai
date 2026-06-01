@@ -12,6 +12,10 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _default(t4_value, regular_value):
+    return t4_value if settings.COLAB_T4_MODE else regular_value
+
+
 def _get_session():
     engine = create_engine(settings.DATABASE_URL_SYNC, pool_pre_ping=True)
     Session = sessionmaker(bind=engine)
@@ -53,7 +57,19 @@ def run_generation(self, job_id: str):
             raise ValueError(f"Unknown engine: {job.engine}")
 
         elapsed = round(time.time() - start, 2)
-        output_url = f"/outputs/{os.path.basename(output_path)}"
+        
+        # Upload to Cloud Storage if configured
+        remote_url = _upload_to_r2(output_path)
+        if remote_url:
+            output_url = remote_url
+            logger.info(f"[{job_id}] Uploaded to cloud storage: {output_url}")
+            # Remove local file to save disk space on worker
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+        else:
+            output_url = f"/outputs/{os.path.basename(output_path)}"
 
         # Save asset record
         _save_asset(db, job.id, output_path, output_url)
@@ -85,36 +101,74 @@ def _download_url(url: str, ext: str) -> str:
         f.write(r.content)
     return out_path
 
+def _upload_to_r2(file_path: str) -> str:
+    if not settings.R2_ACCOUNT_ID or not settings.R2_ACCESS_KEY or not settings.R2_SECRET_KEY:
+        return None
+    import boto3
+    from botocore.config import Config
+    try:
+        s3 = boto3.client(
+            's3',
+            endpoint_url=f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            aws_access_key_id=settings.R2_ACCESS_KEY,
+            aws_secret_access_key=settings.R2_SECRET_KEY,
+            config=Config(signature_version='s3v4'),
+            region_name="auto"
+        )
+        filename = os.path.basename(file_path)
+        s3.upload_file(file_path, settings.R2_BUCKET_NAME, filename)
+        if settings.R2_PUBLIC_URL:
+            return f"{settings.R2_PUBLIC_URL.rstrip('/')}/{filename}"
+        return f"https://{settings.R2_BUCKET_NAME}.{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/{filename}"
+    except Exception as e:
+        logger.error(f"Failed to upload {file_path} to R2: {e}")
+        return None
+
 def _run_wan(db, job, params: dict) -> str:
     from pipelines.wan import WanPipeline
+
     _update(db, job.id, progress=20)
     def progress_cb(prog): _update(db, job.id, progress=20 + int(prog * 0.7))
     pipe = WanPipeline.load()
     return pipe.generate(
         prompt=job.optimized_prompt or job.prompt,
-        negative_prompt=params.get("negative_prompt"),
+        negative_prompt=job.negative_prompt,
         mode=job.mode,
-        input_image_url=params.get("input_image_url"),
+        input_image_url=job.input_image_url,
         lora_path=job.lora_path,
-        steps=params.get("steps", settings.WAN_DEFAULT_STEPS),
+        steps=params.get("steps", _default(settings.T4_WAN_STEPS, settings.WAN_DEFAULT_STEPS)),
+        cfg_scale=params.get("cfg_scale", 5.0),
+        width=params.get("width", _default(settings.T4_WAN_WIDTH, 832)),
+        height=params.get("height", _default(settings.T4_WAN_HEIGHT, 480)),
+        num_frames=params.get("num_frames", _default(settings.T4_WAN_FRAMES, 81)),
+        fps=params.get("fps", _default(settings.T4_WAN_FPS, 16)),
+        seed=params.get("seed"),
         progress_cb=progress_cb
     )
 
 def _run_cogvideo(db, job, params: dict) -> str:
     from pipelines.cogvideo import CogVideoPipeline
+
     _update(db, job.id, progress=20)
     def progress_cb(prog): _update(db, job.id, progress=20 + int(prog * 0.7))
     pipe = CogVideoPipeline.load()
     return pipe.generate(
         prompt=job.optimized_prompt or job.prompt,
-        negative_prompt=params.get("negative_prompt"),
+        negative_prompt=job.negative_prompt,
         lora_path=job.lora_path,
         steps=params.get("steps", settings.COGVIDEO_DEFAULT_STEPS),
+        cfg_scale=params.get("cfg_scale", 6.0),
+        width=params.get("width", 720),
+        height=params.get("height", 480),
+        num_frames=params.get("num_frames", 49),
+        fps=params.get("fps", 8),
+        seed=params.get("seed"),
         progress_cb=progress_cb
     )
 
 def _run_flux(db, job, params: dict) -> str:
     from pipelines.flux import FluxPipeline
+
     _update(db, job.id, progress=20)
     def progress_cb(prog): _update(db, job.id, progress=20 + int(prog * 0.7))
     pipe = FluxPipeline.load()
@@ -122,6 +176,10 @@ def _run_flux(db, job, params: dict) -> str:
         prompt=job.optimized_prompt or job.prompt,
         lora_path=job.lora_path,
         steps=params.get("steps", settings.FLUX_DEFAULT_STEPS),
+        cfg_scale=params.get("cfg_scale", 3.5),
+        width=params.get("width", _default(settings.T4_FLUX_WIDTH, 1024)),
+        height=params.get("height", _default(settings.T4_FLUX_HEIGHT, 1024)),
+        seed=params.get("seed"),
         progress_cb=progress_cb
     )
 

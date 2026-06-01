@@ -65,8 +65,8 @@ async def generate(req: GenerateRequest, db: AsyncSession = Depends(get_db)):
     # Validate engine
     if req.engine == "wan" and not settings.ENABLE_WAN:
         raise HTTPException(400, "Wan engine disabled.")
-    if req.engine == "cogvideo" and not settings.ENABLE_COGVIDEO:
-        raise HTTPException(400, "CogVideoX engine disabled.")
+    if req.engine == "cogvideo" and (not settings.ENABLE_COGVIDEO or settings.COLAB_T4_MODE):
+        raise HTTPException(400, "CogVideoX engine disabled for this profile.")
     if req.engine == "flux" and not settings.ENABLE_FLUX:
         raise HTTPException(400, "FLUX engine disabled.")
     if req.mode == "i2v" and not req.input_image_url:

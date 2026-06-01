@@ -5,8 +5,7 @@ import clsx from "clsx";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ENGINES = [
-  { id: "wan"      as Engine, label: "Wan 2.6",   badge: "14B", modes: ["t2v","i2v"] as Mode[], color: "from-blue-500/20 to-blue-900/10 border-blue-500/30" },
-  { id: "cogvideo" as Engine, label: "CogVideoX", badge: "5B",  modes: ["t2v"]        as Mode[], color: "from-purple-500/20 to-purple-900/10 border-purple-500/30" },
+  { id: "wan"      as Engine, label: "Wan 2.1",   badge: "1.3B/T4", modes: ["t2v"] as Mode[], color: "from-blue-500/20 to-blue-900/10 border-blue-500/30" },
   { id: "flux"     as Engine, label: "FLUX.1",    badge: "Schnell", modes: ["t2i"]        as Mode[], color: "from-emerald-500/20 to-emerald-900/10 border-emerald-500/30" },
 ];
 
@@ -26,7 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "text-muted bg-dim/50 border-border",
 };
 
-type Panel = "generate" | "jobs" | "characters" | "assets";
+type Panel = "generate" | "chat" | "jobs" | "characters" | "assets";
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
@@ -69,9 +68,9 @@ export default function App() {
           </div>
         </div>
 
-        {(["generate","jobs","characters","assets"] as Panel[]).map(p => {
+        {(["generate","chat","jobs","characters","assets"] as Panel[]).map(p => {
           const icons: Record<Panel, string> = {
-            generate: "⚡", jobs: "◎", characters: "◈", assets: "▦",
+            generate: "⚡", chat: "💬", jobs: "◎", characters: "◈", assets: "▦",
           };
           return (
             <button
@@ -111,6 +110,12 @@ export default function App() {
             characters={characters}
             onJobSubmitted={() => { setPanel("jobs"); refresh(); }}
           />
+        )}
+        {panel === "chat" && (
+          <ChatPanel onUsePrompt={(prompt) => {
+            setPanel("generate");
+            // Basic integration: a robust app would lift prompt state up or use a store
+          }} />
         )}
         {panel === "jobs" && (
           <JobsPanel
@@ -380,12 +385,12 @@ function GeneratePanel({ characters, onJobSubmitted }: {
           {advanced && (
             <div className="mt-3 grid grid-cols-2 gap-2.5 animate-fade-in">
               {[
-                ["Steps",   steps, setSteps,   "50"],
+                ["Steps",   steps, setSteps,   engine === "wan" ? "12" : "4"],
                 ["CFG",     cfg,   setCfg,     "5.0"],
-                ["Width",   width, setWidth,   "832"],
-                ["Height",  height,setHeight,  "480"],
-                ["Frames",  frames,setFrames,  "81"],
-                ["FPS",     fps,   setFps,     "16"],
+                ["Width",   width, setWidth,   engine === "wan" ? "512" : "512"],
+                ["Height",  height,setHeight,  engine === "wan" ? "320" : "512"],
+                ["Frames",  frames,setFrames,  engine === "wan" ? "33" : "-"],
+                ["FPS",     fps,   setFps,     engine === "wan" ? "8" : "-"],
                 ["Seed",    seed,  setSeed,    "random"],
               ].map(([label, val, set, ph]: any) => (
                 <div key={label}>
@@ -775,5 +780,89 @@ function StatusBadge({ status, progress }: { status: string; progress: number })
       )}
       {status === "running" ? `${progress}%` : status}
     </span>
+  );
+}
+
+// ── Chat Panel ────────────────────────────────────────────────────────────────
+function ChatPanel({ onUsePrompt }: { onUsePrompt?: (prompt: string) => void }) {
+  const [messages, setMessages] = useState<{role: string; content: string}[]>([
+    { role: "system", content: "You are an uncensored AI assistant specifically tuned to help users brainstorm, script, and prompt for an 18+ content generation platform." }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages]);
+
+  async function send() {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    setLoading(true);
+    
+    try {
+      const res = await api.chat(newMessages);
+      setMessages([...newMessages, { role: "assistant", content: res.response }]);
+    } catch (e: any) {
+      setMessages([...newMessages, { role: "assistant", content: `Error: ${e.message}` }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden bg-bg">
+      <div className="px-6 py-4 border-b border-border bg-surface flex justify-between items-center">
+        <div>
+          <h2 className="font-display text-lg font-bold">Uncensored AI Assistant</h2>
+          <p className="text-xs text-muted">Brainstorm scripts and prompts for generation</p>
+        </div>
+        <button onClick={() => api.unloadChat()} className="btn-ghost text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-dim">Unload from GPU</button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {messages.filter(m => m.role !== "system").map((m, i) => (
+          <div key={i} className={clsx("flex flex-col max-w-[80%]", m.role === "user" ? "ml-auto items-end" : "mr-auto items-start")}>
+            <div className={clsx(
+              "px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed",
+              m.role === "user" ? "bg-gold text-black rounded-tr-sm" : "bg-panel border border-border text-white/90 rounded-tl-sm"
+            )}>
+              {m.content}
+            </div>
+            <span className="text-[10px] text-muted mt-1 px-1 capitalize">{m.role}</span>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex gap-1 p-4 w-16 items-center justify-center bg-panel border border-border rounded-2xl rounded-tl-sm">
+            <span className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce"></span>
+            <span className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce delay-100"></span>
+            <span className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce delay-200"></span>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+      
+      <div className="p-4 border-t border-border bg-surface">
+        <div className="max-w-4xl mx-auto flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder="Ask the AI for ideas, scripts, or video prompts..."
+            className="flex-1 input-base bg-panel py-3"
+            disabled={loading}
+          />
+          <button 
+            onClick={send} 
+            disabled={!input.trim() || loading}
+            className="btn-primary px-6"
+          >
+            {loading ? "..." : "Send"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

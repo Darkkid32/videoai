@@ -100,4 +100,6 @@ export const api = {
     if (!url) return null;
     return url.startsWith("http") ? url : `${BASE}${url}`;
   },
+  chat: (messages: {role: string; content: string}[]) => req<{response: string}>("/chat", { method: "POST", body: JSON.stringify({ messages }) }),
+  unloadChat: () => req<{status: string}>("/chat/unload", { method: "POST" }),
 };

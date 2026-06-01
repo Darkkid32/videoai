@@ -22,13 +22,21 @@ class WanPipeline:
         dtype = torch.bfloat16
 
         logger.info(f"[Wan] Loading T2V: {settings.WAN_MODEL_ID}")
+        kwargs = {
+            "torch_dtype": dtype,
+            "cache_dir": settings.MODEL_CACHE_DIR,
+        }
+        if settings.HF_TOKEN:
+            kwargs["token"] = settings.HF_TOKEN
+
         pipe = _T2V.from_pretrained(
             settings.WAN_MODEL_ID,
-            torch_dtype=dtype,
-            cache_dir=settings.MODEL_CACHE_DIR,
+            **kwargs
         )
         if hasattr(pipe, "safety_checker"):
             pipe.safety_checker = None
+        if hasattr(pipe, "requires_safety_checker"):
+            pipe.requires_safety_checker = False
         pipe.enable_model_cpu_offload()
 
         pipe_i2v = None
@@ -36,11 +44,12 @@ class WanPipeline:
             logger.info("[Wan] Loading I2V...")
             pipe_i2v = WanImageToVideoPipeline.from_pretrained(
                 settings.WAN_I2V_MODEL_ID,
-                torch_dtype=dtype,
-                cache_dir=settings.MODEL_CACHE_DIR,
+                **kwargs
             )
             if hasattr(pipe_i2v, "safety_checker"):
                 pipe_i2v.safety_checker = None
+            if hasattr(pipe_i2v, "requires_safety_checker"):
+                pipe_i2v.requires_safety_checker = False
             pipe_i2v.enable_model_cpu_offload()
         except Exception as e:
             logger.warning(f"[Wan] I2V not loaded: {e}")
