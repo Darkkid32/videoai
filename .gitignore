@@ -5,3 +5,4 @@ __pycache__/
 .next/
 outputs/
 model_cache/
+.playwright-mcp/
